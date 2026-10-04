@@ -1,0 +1,46 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: make test vet build
+      - name: Generated API consistency
+        run: |
+          make manifests
+          test -z "$(gofmt -l api cmd internal)"
+          git diff --exit-code
+      - name: Real Kubernetes API test
+        run: |
+          export KUBEBUILDER_ASSETS=$(go run sigs.k8s.io/controller-runtime/tools/setup-envtest@release-0.25 use 1.35.x -p path)
+          make test-envtest
+      - name: SDK packaging
+        run: |
+          python -m pip install build
+          python -m build sdk/python
+  kind:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: Install kind
+        run: go install sigs.k8s.io/kind@v0.27.0
+      - name: Two readers, three windows, real Jobs
+        run: ./scripts/kind-smoke.sh

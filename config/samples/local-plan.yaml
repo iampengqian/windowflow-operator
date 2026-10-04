@@ -1,0 +1,24 @@
+apiVersion: data.windowflow.io/v1alpha1
+kind: WindowPlan
+metadata:
+  name: local-demo
+  namespace: default
+spec:
+  pvcName: training-cache
+  sourcePVC: source-data
+  backend: local
+  slots: 2
+  maxConcurrentLoads: 1
+  capacityBytes: 14
+  readers: [dp0, dp1]
+  workerImage: ghcr.io/iampengqian/windowflow-operator:v0.1.0
+  windows:
+    - id: window-0000
+      source: windows/0000
+      expectedBytes: 6
+    - id: window-0001
+      source: windows/0001
+      expectedBytes: 6
+    - id: window-0002
+      source: windows/0002
+      expectedBytes: 8

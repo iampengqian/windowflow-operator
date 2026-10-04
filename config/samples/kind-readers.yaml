@@ -1,0 +1,27 @@
+apiVersion: batch/v1
+kind: Job
+metadata: {name: windowflow-readers, namespace: default}
+spec:
+  completionMode: Indexed
+  completions: 2
+  parallelism: 2
+  backoffLimit: 0
+  activeDeadlineSeconds: 600
+  template:
+    spec:
+      serviceAccountName: windowflow-reader
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+      containers:
+        - name: read
+          image: windowflow-reader:smoke
+          imagePullPolicy: Never
+          args: [--plan, local-demo, --reader, 'dp$(JOB_COMPLETION_INDEX)', --mount, /cache, --workers, '2']
+          volumeMounts:
+            - {name: cache, mountPath: /cache, readOnly: true}
+      volumes:
+        - name: cache
+          persistentVolumeClaim: {claimName: training-cache, readOnly: true}

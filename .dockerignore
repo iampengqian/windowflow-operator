@@ -1,0 +1,8 @@
+.git
+.venv
+bin
+sdk
+docs
+examples
+**/__pycache__
+.env*

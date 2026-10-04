@@ -1,0 +1,226 @@
+---
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  annotations:
+    controller-gen.kubebuilder.io/version: v0.20.0
+  name: windowplans.data.windowflow.io
+spec:
+  group: data.windowflow.io
+  names:
+    kind: WindowPlan
+    listKind: WindowPlanList
+    plural: windowplans
+    singular: windowplan
+  scope: Namespaced
+  versions:
+  - additionalPrinterColumns:
+    - jsonPath: .status.phase
+      name: Phase
+      type: string
+    - jsonPath: .status.completedWindows
+      name: Completed
+      type: integer
+    - jsonPath: .spec.slots
+      name: Slots
+      type: integer
+    name: v1alpha1
+    schema:
+      openAPIV3Schema:
+        properties:
+          apiVersion:
+            description: |-
+              APIVersion defines the versioned schema of this representation of an object.
+              Servers should convert recognized schemas to the latest internal value, and
+              may reject unrecognized values.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources
+            type: string
+          kind:
+            description: |-
+              Kind is a string value representing the REST resource this object represents.
+              Servers may infer this from the endpoint the client submits requests to.
+              Cannot be updated.
+              In CamelCase.
+              More info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds
+            type: string
+          metadata:
+            type: object
+          spec:
+            description: WindowPlanSpec is immutable. A new training attempt requires
+              a new plan.
+            properties:
+              backend:
+                enum:
+                - local
+                - cpfs-dataflow
+                type: string
+              capacityBytes:
+                format: int64
+                minimum: 1
+                type: integer
+              dataFlow:
+                description: DataFlowSpec identifies an existing CPFS DataFlow and
+                  the PVC's actual filesystem path.
+                properties:
+                  credentialsSecret:
+                    type: string
+                  dataFlowId:
+                    type: string
+                  fileSystemId:
+                    type: string
+                  fileSystemPath:
+                    type: string
+                  pvcPath:
+                    type: string
+                  region:
+                    type: string
+                required:
+                - credentialsSecret
+                - dataFlowId
+                - fileSystemId
+                - fileSystemPath
+                - pvcPath
+                - region
+                type: object
+              jobTimeoutSeconds:
+                default: 604800
+                format: int64
+                maximum: 2592000
+                minimum: 60
+                type: integer
+              maxConcurrentLoads:
+                default: 1
+                format: int32
+                maximum: 64
+                minimum: 1
+                type: integer
+              pvcName:
+                minLength: 1
+                type: string
+              readers:
+                items:
+                  type: string
+                maxItems: 4096
+                minItems: 1
+                type: array
+              slots:
+                format: int32
+                maximum: 64
+                minimum: 2
+                type: integer
+              sourcePVC:
+                type: string
+              startWindow:
+                default: 0
+                description: StartWindow is the first ordinal staged by this new attempt
+                  after checkpoint recovery.
+                format: int32
+                maximum: 1023
+                minimum: 0
+                type: integer
+              windows:
+                items:
+                  properties:
+                    expectedBytes:
+                      description: ExpectedBytes is the exact sum of regular-file
+                        content bytes, not a filesystem quota.
+                      format: int64
+                      minimum: 0
+                      type: integer
+                    id:
+                      maxLength: 128
+                      minLength: 1
+                      type: string
+                    source:
+                      description: Source is a relative directory in the source PVC
+                        or DataFlow's OSS prefix.
+                      minLength: 1
+                      type: string
+                  required:
+                  - expectedBytes
+                  - id
+                  - source
+                  type: object
+                maxItems: 1024
+                minItems: 1
+                type: array
+              workerImage:
+                minLength: 1
+                type: string
+            required:
+            - backend
+            - capacityBytes
+            - pvcName
+            - readers
+            - slots
+            - windows
+            - workerImage
+            type: object
+            x-kubernetes-validations:
+            - message: a WindowPlan spec is immutable; create a new plan for a new
+                attempt
+              rule: self == oldSelf
+          status:
+            properties:
+              completedWindows:
+                format: int32
+                type: integer
+              message:
+                type: string
+              nextWindow:
+                format: int32
+                type: integer
+              observedGeneration:
+                format: int64
+                type: integer
+              phase:
+                type: string
+              slots:
+                items:
+                  properties:
+                    cleanJob:
+                      type: string
+                    generation:
+                      type: string
+                    index:
+                      format: int32
+                      type: integer
+                    phase:
+                      enum:
+                      - Loading
+                      - Ready
+                      - Reclaiming
+                      - Failed
+                      type: string
+                    relativePath:
+                      type: string
+                    reservedBytes:
+                      format: int64
+                      type: integer
+                    stageJob:
+                      type: string
+                    windowId:
+                      type: string
+                    windowIndex:
+                      format: int32
+                      type: integer
+                  required:
+                  - cleanJob
+                  - generation
+                  - index
+                  - phase
+                  - relativePath
+                  - reservedBytes
+                  - stageJob
+                  - windowId
+                  - windowIndex
+                  type: object
+                type: array
+            type: object
+        required:
+        - spec
+        type: object
+    served: true
+    storage: true
+    subresources:
+      status: {}

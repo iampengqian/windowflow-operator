@@ -1,0 +1,49 @@
+name: Bug report
+description: Report a reproducible behavior or documentation defect.
+title: "[Bug] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        WindowFlow is experimental. Use disposable data for reproductions.
+        Do not include credentials, kubeconfigs, private dataset listings, or exploit details.
+        For security issues, follow SECURITY.md.
+  - type: input
+    id: version
+    attributes:
+      label: Commit or image digest
+      description: Include the Python SDK version if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Kubernetes, storage backend, OS/architecture, Go/Python versions, and relevant topology. State whether this used real CPFS or fake/local APIs.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: Include sanitized status and errors. Do not include Secret values.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: Commands and a sanitized minimal plan using expendable files. Include the reader release sequence if relevant.
+    validations:
+      required: true
+  - type: textarea
+    id: validation
+    attributes:
+      label: Checks already performed
+      description: Exact commands and outcomes; distinguish local tests from live provider tests.

@@ -1,0 +1,70 @@
+# Expendable single-node kind demo only. Never apply this to ACK/production.
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: windowflow-demo-cache
+spec:
+  capacity: {storage: 1Gi}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: windowflow-demo
+  hostPath: {path: /tmp/windowflow-demo/cache, type: DirectoryOrCreate}
+---
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: windowflow-demo-source
+spec:
+  capacity: {storage: 1Gi}
+  accessModes: [ReadWriteOnce]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: windowflow-demo
+  hostPath: {path: /tmp/windowflow-demo/source, type: DirectoryOrCreate}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: training-cache, namespace: default}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: windowflow-demo
+  volumeName: windowflow-demo-cache
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: {name: source-data, namespace: default}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: windowflow-demo
+  volumeName: windowflow-demo-source
+  resources: {requests: {storage: 1Gi}}
+---
+apiVersion: batch/v1
+kind: Job
+metadata: {name: windowflow-prepare, namespace: default}
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      containers:
+        - name: prepare
+          image: busybox:1.37
+          command: [sh, -ec]
+          args:
+            - |
+              mkdir -p /source/windows/0000 /source/windows/0001 /source/windows/0002
+              printf 'alpha\n' > /source/windows/0000/clip.txt
+              printf 'bravo\n' > /source/windows/0001/clip.txt
+              printf 'charlie\n' > /source/windows/0002/clip.txt
+              chown 1000:1000 /cache
+              chmod 0755 /cache
+          volumeMounts:
+            - {name: source, mountPath: /source}
+            - {name: cache, mountPath: /cache}
+      volumes:
+        - name: source
+          persistentVolumeClaim: {claimName: source-data}
+        - name: cache
+          persistentVolumeClaim: {claimName: training-cache}

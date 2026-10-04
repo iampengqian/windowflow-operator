@@ -1,0 +1,28 @@
+name: Feature request
+description: Propose a concrete use case or improvement.
+title: "[Feature] "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and use case
+      description: Describe the actual workflow and the limitation you encounter.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Explain the user-visible result and any relevant API or operational change.
+    validations:
+      required: true
+  - type: textarea
+    id: safety
+    attributes:
+      label: Ownership, failure, and recovery implications
+      description: How would this affect reader releases, cleanup, source immutability, or PVC ownership?
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives and validation
+      description: Existing workarounds and how the proposed behavior could be tested.
