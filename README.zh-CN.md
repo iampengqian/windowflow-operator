@@ -4,7 +4,7 @@ WindowFlow 把不可变数据集按目录组织成窗口，在 Kubernetes 共享
 
 适用场景是：全量数据放对象存储，少量工作集放共享训练文件系统，训练任务接受在当前窗口内采样。v0.1 提供本地 PVC 复制和阿里云 CPFS 数据流导入两种后端。原始视频可以保留目录结构，无需为本项目转换格式。
 
-[English](README.md) · [架构](docs/architecture.md) · [运维](docs/operations.md) · [贡献指南](CONTRIBUTING.md)
+[English](README.md) · [ACK / Megatron 接入](docs/ack-integration.zh-CN.md) · [架构](docs/architecture.md) · [运维](docs/operations.md) · [贡献指南](CONTRIBUTING.md)
 
 **当前状态：实验性 v0.1。** 这是参考实现，没有 PB 规模、真实 ACK/CPFS 或 PPU 生产验证。CPFS 后端必须在真实环境做冒烟测试。SDK 和示例不提供完整的 Megatron 断点恢复能力。计划使用的镜像名为 `ghcr.io/iampengqian/windowflow-operator:v0.1.0`，本文不表示镜像已经成功发布；在确认 registry 构建成功前，请自行构建。
 

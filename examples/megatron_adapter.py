@@ -64,6 +64,12 @@ def continuous_window_batches(
     Pass the resulting iterator through the platform's Megatron external-loader
     hook. Most versions expose dataloader_type='external'; verify your fork.
     There are no collectives/barriers in this adapter, including at boundaries.
+
+    The platform must normally exhaust this iterator after the final planned
+    batch. A fixed-step training loop may otherwise stop while the generator is
+    suspended at its last yield, retaining the last lease. Once the full planned
+    sample budget is consumed, call next(iterator) and require StopIteration.
+    Early stop/cancellation intentionally retains the lease for safe recovery.
     """
     import torch
     from megatron.core import parallel_state
