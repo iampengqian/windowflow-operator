@@ -4,6 +4,8 @@ __pycache__/
 *.py[cod]
 *.egg-info/
 /dist/
+/sdk/python/dist/
+/sdk/python/build/
 /coverage.out
 /.env
 /.env.*

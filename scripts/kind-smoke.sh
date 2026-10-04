@@ -9,10 +9,8 @@ if kind get clusters | grep -qx "$cluster"; then
 fi
 docker build -t ghcr.io/iampengqian/windowflow-operator:v0.1.0 .
 docker build -f examples/Dockerfile.reader -t windowflow-reader:smoke .
-kind create cluster --name "$cluster" --image kindest/node:v1.32.2 --wait 120s
 export KUBECONFIG
 KUBECONFIG=$(mktemp)
-kind get kubeconfig --name "$cluster" > "$KUBECONFIG"
 finish() {
   result=$?
   if [ "$result" -ne 0 ]; then
@@ -26,6 +24,7 @@ finish() {
   exit "$result"
 }
 trap finish EXIT
+kind create cluster --name "$cluster" --image kindest/node:v1.32.2 --wait 120s
 kind load docker-image --name "$cluster" ghcr.io/iampengqian/windowflow-operator:v0.1.0 windowflow-reader:smoke
 kubectl apply -k config/default
 kubectl wait --for=condition=Established crd/windowplans.data.windowflow.io crd/windowleases.data.windowflow.io --timeout=90s
