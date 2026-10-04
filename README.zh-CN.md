@@ -124,6 +124,8 @@ stage/clean Job 失败会冻结计划，不会自动回收或重试。删除 Win
 
 开发验证入口为 `make test`、`make manifests`、`make build`；提交变更需说明实际执行的测试，见 [CONTRIBUTING.md](CONTRIBUTING.md)。
 
+[验收记录](docs/validation.md)列出了已经通过的真实测试，以及尚未验证的云端和训练行为。
+
 窗口轮换思路参考了 [MONAI SmartCacheDataset](https://github.com/Project-MONAI/MONAI/blob/dev/monai/data/dataset.py)。MONAI 缓存进程内的变换结果，本项目协调共享 PVC 的目录驻留；未复制 MONAI 源码。
 
 项目采用 [Apache License 2.0](LICENSE)。安全问题处理方式见 [SECURITY.md](SECURITY.md)。

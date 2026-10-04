@@ -151,6 +151,8 @@ See the [Megatron integration sketch](examples/megatron_adapter.py) and [CPU fil
 
 Run `make test`, `make manifests`, and `make build` from the repository root. See [CONTRIBUTING.md](CONTRIBUTING.md) for the required evidence in pull requests. Passing unit tests is not evidence of a successful live CPFS deployment.
 
+The [validation record](docs/validation.md) separates tests that actually passed from unverified cloud/training behavior.
+
 The rolling-window idea is informed by [MONAI SmartCacheDataset](https://github.com/Project-MONAI/MONAI/blob/dev/monai/data/dataset.py). MONAI caches transformed objects in process memory; this project coordinates directory residency on a shared PVC. No MONAI source is copied.
 
 Licensed under [Apache License 2.0](LICENSE). Please report security concerns according to [SECURITY.md](SECURITY.md).
