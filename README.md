@@ -6,7 +6,7 @@ The intended use is a large, immutable dataset in object storage, a smaller shar
 
 [简体中文](README.zh-CN.md) · [Architecture](docs/architecture.md) · [Operations](docs/operations.md) · [Contributing](CONTRIBUTING.md)
 
-**Status: experimental v0.1.** This is a reference implementation, not a production storage service. There is no PB-scale, real ACK/CPFS, or PPU production validation. The CPFS backend requires a real-environment smoke test. The Python SDK and examples do not provide complete Megatron checkpoint recovery. The planned image is `ghcr.io/iampengqian/windowflow-operator:v0.1.0`; this documentation does not assert that a published image is available. Build the image locally until a successful registry build is verified.
+**Status: experimental v0.1.** This is a reference implementation, not a production storage service. There is no PB-scale, real ACK/CPFS, or PPU production validation. The CPFS backend requires a real-environment smoke test. The Python SDK and examples do not provide complete Megatron checkpoint recovery. The published image is `ghcr.io/iampengqian/windowflow-operator:v0.1.0` (Linux amd64/arm64). Anonymous registry access was verified; see the [validation record](docs/validation.md) for its digest.
 
 ## What it does
 
@@ -41,7 +41,20 @@ flowchart LR
 
 With Docker, kind, and kubectl installed, run `./scripts/kind-smoke.sh`. It creates a disposable single-node cluster, builds the operator and SDK-reader images, prepares tiny files, and runs two readers through three windows on two slots. It removes its own cluster on exit; set `KEEP_CLUSTER=1` to inspect it. No GPUs or cloud credentials are needed. The script refuses to replace an existing cluster of the same name.
 
-## Build and deploy
+## Install the published release
+
+With access to a Kubernetes cluster and permission to install CRDs/RBAC:
+
+```sh
+git clone --branch v0.1.0 https://github.com/iampengqian/windowflow-operator.git
+cd windowflow-operator
+kubectl apply -k config/default
+kubectl rollout status -n windowflow-system deployment/windowflow-controller
+```
+
+Nodes must be able to reach GHCR, or mirror the image to your own registry and update both controller and worker image references. Prepare storage and reader permissions before submitting a plan. The controller installation alone does not create or populate a dataset.
+
+## Build and deploy from source
 
 Prerequisites:
 

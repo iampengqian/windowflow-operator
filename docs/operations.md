@@ -29,7 +29,7 @@ docker build -t ghcr.io/iampengqian/windowflow-operator:v0.1.0 .
 kubectl apply -k config/default
 ```
 
-Before the last command, make the image available to every node that may run the controller or a worker. For a local kind cluster, `kind load docker-image ghcr.io/iampengqian/windowflow-operator:v0.1.0` loads the build. For other clusters, use a registry and any necessary pull credentials. The documented GHCR tag is a planned release location, not proof that a release exists.
+Before the last command, make the image available to every node that may run the controller or a worker. For a local kind cluster, `kind load docker-image ghcr.io/iampengqian/windowflow-operator:v0.1.0` loads the build. For other clusters, use a registry and any necessary pull credentials. The v0.1.0 GHCR image is published for Linux amd64/arm64 and anonymous access was verified. See [validation](validation.md) for the image digest.
 
 The controller and worker images are separate configuration references even though they use the same binary. Update the controller deployment and `spec.workerImage` together for a new installation. An existing plan's spec cannot be edited to change its image.
 

@@ -15,3 +15,18 @@ The Go controller tests include missing readers, stale plan releases, controller
 **Not tested:** a real OSS-to-CPFS import; ACK CSI mounts or PPU execution; the full Megatron sketch with real TP/PP training; video decoding performance; convergence under window-local sampling; PB-scale throughput, filesystem occupancy, or control-plane scalability.
 
 The kind demonstration uses tiny text files and a CPU file reader. It does not train a model. Fake CPFS responses are protocol tests, not evidence of provider compatibility. Use the [live CPFS runbook](operations.md#cpfs-setup) before promoting this reference implementation to a real dataset.
+
+## Published release
+
+The final v0.1.0 code at `9c7b7665b0de9c091950a54d9af4627311cb1d84` also passed the complete [release CI](https://github.com/iampengqian/windowflow-operator/actions/runs/37211171949), including both test and kind jobs. The subsequent README/validation edits only record these results.
+
+The [image publication workflow](https://github.com/iampengqian/windowflow-operator/actions/runs/37211173600) passed and published Linux amd64/arm64 manifests. Anonymous registry authentication and image-index retrieval were verified without a GitHub credential.
+
+```text
+ghcr.io/iampengqian/windowflow-operator:v0.1.0
+sha256:690e4b0e1cd0a75f92d82b21c626338ba248c15bb438895b4b2134859754a0aa
+```
+
+The index also contains provenance attestations; their `unknown/unknown` entries are not additional executable architectures. These checks establish registry availability and declared platforms, not an arm64 or PPU training execution test.
+
+SDK wheel, source archive, and SHA256SUMS are attached to the [v0.1.0 experimental release](https://github.com/iampengqian/windowflow-operator/releases/tag/v0.1.0).

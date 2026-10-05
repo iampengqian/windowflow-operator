@@ -6,7 +6,7 @@ WindowFlow 把不可变数据集按目录组织成窗口，在 Kubernetes 共享
 
 [English](README.md) · [ACK / Megatron 接入](docs/ack-integration.zh-CN.md) · [架构](docs/architecture.md) · [运维](docs/operations.md) · [贡献指南](CONTRIBUTING.md)
 
-**当前状态：实验性 v0.1。** 这是参考实现，没有 PB 规模、真实 ACK/CPFS 或 PPU 生产验证。CPFS 后端必须在真实环境做冒烟测试。SDK 和示例不提供完整的 Megatron 断点恢复能力。计划使用的镜像名为 `ghcr.io/iampengqian/windowflow-operator:v0.1.0`，本文不表示镜像已经成功发布；在确认 registry 构建成功前，请自行构建。
+**当前状态：实验性 v0.1。** 这是参考实现，没有 PB 规模、真实 ACK/CPFS 或 PPU 生产验证。CPFS 后端必须在真实环境做冒烟测试。SDK 和示例不提供完整的 Megatron 断点恢复能力。镜像 `ghcr.io/iampengqian/windowflow-operator:v0.1.0` 已发布，包含 Linux amd64/arm64，已验证匿名访问；镜像摘要见[验收记录](docs/validation.md)。
 
 ## 功能与边界
 
@@ -23,7 +23,20 @@ WindowFlow 把不可变数据集按目录组织成窗口，在 Kubernetes 共享
 
 安装 Docker、kind 和 kubectl 后，运行 `./scripts/kind-smoke.sh`。脚本创建独立的单节点临时集群，构建 Operator 和 SDK 读取者镜像，用两个读取者、两个槽位消费三个小数据窗口，完成后删除自己创建的集群。无需 GPU 或云凭据；设置 `KEEP_CLUSTER=1` 可以保留集群检查。已有同名集群时脚本拒绝覆盖。
 
-## 构建与部署
+## 直接部署发布镜像
+
+准备可访问的 Kubernetes 集群及 CRD/RBAC 安装权限：
+
+```sh
+git clone --branch v0.1.0 https://github.com/iampengqian/windowflow-operator.git
+cd windowflow-operator
+kubectl apply -k config/default
+kubectl rollout status -n windowflow-system deployment/windowflow-controller
+```
+
+节点需能访问 GHCR；也可以把镜像同步到自己的 registry，并同时修改 controller 和 worker 的镜像引用。提交数据计划前仍需准备 PVC、源数据和 reader 权限。只安装 controller 不会自动创建或导入数据集。
+
+## 从源码构建与部署
 
 准备 Go 1.26、Python 3.10 或更新版本、容器构建工具，以及具有 CRD/RBAC 安装权限的 Kubernetes 1.32+ 集群和 `kubectl`。缓存 PVC 必须支持 worker 和所有训练读取者实际需要的同时挂载方式；跨节点训练通常需要共享存储。
 
