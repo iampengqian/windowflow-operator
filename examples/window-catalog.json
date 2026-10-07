@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "windowflow.catalog/v1",
+  "contentVersion": "local-demo-v1",
+  "windows": [
+    {"id": "alpha", "source": "windows/0000", "expectedBytes": 6, "sampleCount": 1},
+    {"id": "bravo", "source": "windows/0001", "expectedBytes": 6, "sampleCount": 1},
+    {"id": "charlie", "source": "windows/0002", "expectedBytes": 8, "sampleCount": 1}
+  ]
+}

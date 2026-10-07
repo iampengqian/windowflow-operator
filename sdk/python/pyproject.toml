@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "windowflow"
-version = "0.1.0"
-description = "Explicit window leases for WindowFlow Operator training readers"
+version = "0.2.0a1"
+description = "Deterministic window schedules and training lifecycle for WindowFlow Operator"
 readme = "README.md"
 requires-python = ">=3.10"
 license = "Apache-2.0"
@@ -18,6 +18,10 @@ classifiers = [
 
 [project.optional-dependencies]
 kubernetes = ["kubernetes>=28"]
+torch = ["torch>=2.2"]
+
+[project.scripts]
+windowflow-plan = "windowflow.plan_cli:main"
 
 [project.urls]
 Repository = "https://github.com/iampengqian/windowflow-operator"

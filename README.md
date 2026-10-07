@@ -6,6 +6,12 @@ The intended use is a large, immutable dataset in object storage, a smaller shar
 
 [简体中文](README.zh-CN.md) · [Architecture](docs/architecture.md) · [Operations](docs/operations.md) · [Contributing](CONTRIBUTING.md)
 
+**Source SDK update: 0.2.0a1.** Deterministic multi-cycle plans, read-only prewarm
+queries, and `WindowRunner` / `TorchEpochFactory` for full window-local epochs are
+available in source. The Operator image and CRDs remain v0.1.0-compatible. See the
+[SDK README](sdk/python/README.md) and [platform guide](docs/sdk-training.zh-CN.md).
+The new SDK has not been published to PyPI.
+
 **Status: experimental v0.1.** This is a reference implementation, not a production storage service. There is no PB-scale, real ACK/CPFS, or PPU production validation. The CPFS backend requires a real-environment smoke test. The Python SDK and examples do not provide complete Megatron checkpoint recovery. The published image is `ghcr.io/iampengqian/windowflow-operator:v0.1.0` (Linux amd64/arm64). Anonymous registry access was verified; see the [validation record](docs/validation.md) for its digest.
 
 ## What it does
@@ -39,7 +45,7 @@ flowchart LR
 
 ## One-command local demonstration
 
-With Docker, kind, and kubectl installed, run `./scripts/kind-smoke.sh`. It creates a disposable single-node cluster, builds the operator and SDK-reader images, prepares tiny files, and runs two readers through three windows on two slots. It removes its own cluster on exit; set `KEEP_CLUSTER=1` to inspect it. No GPUs or cloud credentials are needed. The script refuses to replace an existing cluster of the same name.
+With Docker, kind, kubectl, and Python 3 installed, run `./scripts/kind-smoke.sh`. It creates a disposable single-node cluster, builds the operator and SDK-reader images, and runs two readers through three cycles of three tiny directories: nine window visits on two slots, two epochs per visit. It removes its own cluster on exit; set `KEEP_CLUSTER=1` to inspect it. No GPUs or cloud credentials are needed. The script refuses to replace an existing cluster of the same name.
 
 ## Install the published release
 

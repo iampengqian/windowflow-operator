@@ -6,6 +6,10 @@ WindowFlow 把不可变数据集按目录组织成窗口，在 Kubernetes 共享
 
 [English](README.md) · [ACK / Megatron 接入](docs/ack-integration.zh-CN.md) · [架构](docs/architecture.md) · [运维](docs/operations.md) · [贡献指南](CONTRIBUTING.md)
 
+**源码 SDK 更新：0.2.0a1。** 新增确定性多轮计划生成、无租约预热查询，以及按窗口内多遍训练的
+`WindowRunner` / `TorchEpochFactory`。兼容现有 v0.1.0 Operator 和 CRD；
+用法见[窗口计划与 PyTorch 接入](docs/sdk-training.zh-CN.md)。新 SDK 尚未发布到 PyPI。
+
 **当前状态：实验性 v0.1。** 这是参考实现，没有 PB 规模、真实 ACK/CPFS 或 PPU 生产验证。CPFS 后端必须在真实环境做冒烟测试。SDK 和示例不提供完整的 Megatron 断点恢复能力。镜像 `ghcr.io/iampengqian/windowflow-operator:v0.1.0` 已发布，包含 Linux amd64/arm64，已验证匿名访问；镜像摘要见[验收记录](docs/validation.md)。
 
 ## 功能与边界
@@ -21,7 +25,7 @@ WindowFlow 把不可变数据集按目录组织成窗口，在 Kubernetes 共享
 
 ## 一条命令验证轮换
 
-安装 Docker、kind 和 kubectl 后，运行 `./scripts/kind-smoke.sh`。脚本创建独立的单节点临时集群，构建 Operator 和 SDK 读取者镜像，用两个读取者、两个槽位消费三个小数据窗口，完成后删除自己创建的集群。无需 GPU 或云凭据；设置 `KEEP_CLUSTER=1` 可以保留集群检查。已有同名集群时脚本拒绝覆盖。
+安装 Docker、kind、kubectl 和 Python 3 后，运行 `./scripts/kind-smoke.sh`。脚本创建独立的单节点临时集群，构建 Operator 和 SDK 读取者镜像，用两个读取者、两个槽位执行三个小目录的三轮计划，共九次窗口访问，每窗读两遍，完成后删除自己创建的集群。无需 GPU 或云凭据；设置 `KEEP_CLUSTER=1` 可以保留集群检查。已有同名集群时脚本拒绝覆盖。
 
 ## 直接部署发布镜像
 

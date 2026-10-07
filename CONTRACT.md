@@ -1,4 +1,4 @@
-# Implementation contract (v0.1)
+# Implementation contract (Operator v0.1, source SDK v0.2.0a1)
 
 This file is the shared implementation specification. The public README will explain usage.
 
@@ -59,11 +59,39 @@ Local stage securely copies a relative directory from sourceRoot into cacheRoot/
 
 ## Python SDK
 
-Package `windowflow`, stdlib + optional `kubernetes` client dependency; version 0.1.0.
+Package `windowflow`, stdlib + optional `kubernetes` and `torch` dependencies; source version 0.2.0a1. The v0.1 low-level lease API remains compatible.
 `WindowClient(plan_name, namespace, reader_id, mount_path, timeout=..., poll_interval=..., api=None)` supports dependency-injected CustomObjectsApi. Load in-cluster config with kubeconfig fallback ONLY if api absent.
 `acquire(window_index)` waits for matching Ready slot, validates membership, creates lease, returns immutable handle (plan UID/index/id/generation/root). Validate CR data, root relativePath and nonnegative indices; path cannot escape mount. Pin UID on first contact and fail if same-name plan replaced. Lease conflicts require verifying tuple and released status. Never reacquire a released lease. `release(handle)` is explicit and idempotent, patches released=true with resourceVersion conflict handling. No __exit__ auto-release on exceptions. No blanket retries for RBAC/validation errors. A timeout never means release.
 `iter_windows` optional; do not auto-release merely when iterator yields a handle. Training example drains workers/decoder before release; sample progress is stored in model checkpoint, not inferred from lease.
 SDK tests use fake API; no real cluster needed. Megatron example must use DP rank, not global rank, and is an integration sketch, not an advertised production adapter.
+
+`WindowObserver` performs only WindowPlan GETs without a reader identity or mounted
+filesystem. `get_status()` includes Failed diagnostics; `wait_ready(index)` fails
+on terminal/replaced/deleted/reclaimed targets, is bounded, and never acquires.
+Status snapshots are immutable and are not release handles.
+
+`generate_schedule` expands an existing directory catalog into finite immutable
+visits (<=1024), records SHA-256 order/digests and a versioned deterministic
+algorithm, and creates no cluster/storage side effects. `build_plan` binds this
+schedule into a fresh template; the CLI never overwrites existing files. Source
+content remains the caller's immutable-data responsibility. Repeated visits use
+new generations, with no promise of cross-cycle cache reuse.
+
+`WindowRunner` consumes complete nonempty epochs from a `WindowEpoch` factory.
+Only normal exhaustion followed by successful explicit drain permits release,
+and only after the final epoch of that window. No per-batch API requests or
+collectives. Failed callbacks stop the runner; close/abort never releases.
+Fixed-step consumers must call finish after the final planned batch. Finish may
+peek to establish exhaustion but must retain any unconsumed batch and reject
+premature completion. A runner belongs to one reader thread and is not reentrant.
+
+`TorchEpochFactory` optionally constructs map-style nonpersistent DataLoaders,
+checks actual vs declared batch counts, closes main-process Dataset resources
+after normal worker exhaustion, and uses an independent loader RNG. Training
+must supply DP/TP/PP sample/topology semantics and fully materialized CPU data.
+Cancellation drops owned resources but is not worker fencing. Full global sample
+budgets, exact checkpoint state, partial replacement and persistent workers are
+outside this SDK increment; epochs_per_window and num_cycles are separate policies.
 
 ## Scope and honesty
 
