@@ -6,7 +6,7 @@ spec:
   completions: 2
   parallelism: 2
   backoffLimit: 0
-  activeDeadlineSeconds: 600
+  activeDeadlineSeconds: 1200
   template:
     spec:
       serviceAccountName: windowflow-reader
@@ -19,7 +19,7 @@ spec:
         - name: read
           image: windowflow-reader:smoke
           imagePullPolicy: Never
-          args: [--plan, local-demo, --reader, 'dp$(JOB_COMPLETION_INDEX)', --mount, /cache, --workers, '2']
+          args: [--plan, generated-local-demo, --reader, 'dp$(JOB_COMPLETION_INDEX)', --mount, /cache, --workers, '2', --epochs-per-window, '2']
           volumeMounts:
             - {name: cache, mountPath: /cache, readOnly: true}
       volumes:

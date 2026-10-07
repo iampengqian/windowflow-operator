@@ -1,10 +1,11 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Fail-closed, explicitly released Kubernetes window leases.
+"""Read-only plan observations and explicitly released Kubernetes window leases.
 
 Kubernetes is an optional dependency so the state machine can be tested with a
-dependency-injected CustomObjectsApi. No storage I/O or distributed collectives
-are performed by the SDK. A client is intended for one reader in one process;
-do not share it with DataLoader workers.
+dependency-injected CustomObjectsApi. The observer performs no filesystem I/O;
+the lease client checks mounted paths but never copies data or runs distributed
+collectives. Instances are intended for one process; do not share a lease client
+with DataLoader workers.
 """
 
 from __future__ import annotations
@@ -63,6 +64,43 @@ class WindowHandle:
     root: Path
 
 
+@dataclass(frozen=True)
+class WindowSlotStatus:
+    """A read-only slot observation, not a lease or permission to read files."""
+
+    index: int
+    window_index: int
+    window_id: str
+    generation: str
+    phase: str
+    relative_path: str
+    reserved_bytes: int
+    stage_job: str
+    clean_job: str
+
+
+@dataclass(frozen=True)
+class WindowPlanStatus:
+    """An immutable point-in-time observation; readiness is not a reservation.
+
+    ``completed_windows`` counts reclaimed windows in this attempt, not model
+    training progress. No per-reader state or transfer percentage is inferred.
+    """
+
+    plan_name: str
+    namespace: str
+    plan_uid: str
+    phase: str
+    message: str
+    start_window: int
+    window_count: int
+    slot_count: int
+    next_window: int
+    completed_windows: int
+    observed_generation: int
+    slots: tuple[WindowSlotStatus, ...]
+
+
 def _index(value: Any, name: str) -> int:
     # bool is an int subclass, but is not a valid API index.
     if type(value) is not int or value < 0:
@@ -82,6 +120,24 @@ def _mapping(value: Any, name: str) -> dict[str, Any]:
     return value
 
 
+def _string(value: Any, name: str) -> str:
+    if not isinstance(value, str):
+        raise WindowValidationError(f"{name} must be a string")
+    return value
+
+
+def _relative_path(uid: str, generation: str, relative: Any) -> str:
+    """Validate API path identity without touching a local filesystem."""
+    if not isinstance(relative, str) or "\\" in relative or "\x00" in relative:
+        raise WindowValidationError("slot relativePath must be a safe POSIX relative path")
+    parts = relative.split("/")
+    if PurePosixPath(relative).is_absolute() or any(part in ("", ".", "..") for part in parts):
+        raise WindowValidationError("slot relativePath contains an absolute path or traversal")
+    if relative != f"windowflow/{uid}/{generation}":
+        raise WindowValidationError("slot relativePath does not match the plan UID and generation")
+    return relative
+
+
 def lease_name(plan_uid: str, reader_id: str, window_index: int, generation: str) -> str:
     """Return the exact v0.1 lease name shared with the controller."""
     _token(plan_uid, "plan UID")
@@ -92,15 +148,19 @@ def lease_name(plan_uid: str, reader_id: str, window_index: int, generation: str
     return "wl-" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:40]
 
 
-class WindowClient:
-    """Acquire and explicitly release windows for one immutable training attempt.
+class WindowObserver:
+    """Observe an immutable plan using only GET permission on WindowPlans.
+
+    No reader identity, cache mount, storage I/O, or lease API permission is
+    required. A Ready observation never reserves a window: training readers must
+    independently acquire their leases through ``WindowClient.acquire``.
 
     ``api`` may be a kubernetes.client.CustomObjectsApi or an object exposing the
-    corresponding get/create/patch methods. When omitted, in-cluster credentials
+    corresponding GET method. When omitted, in-cluster credentials
     are loaded, with kubeconfig fallback only for configuration unavailability.
     API authorization/validation errors are propagated immediately, not retried.
 
-    ``timeout`` bounds polling and conflict retries, excluding an individual API
+    ``timeout`` bounds polling, excluding an individual API
     call's transport latency. Kubernetes transport timeouts are also configured
     on each request. Timeout, process death, and iterator abandonment never
     automatically release a window.
@@ -110,24 +170,18 @@ class WindowClient:
         self,
         plan_name: str,
         namespace: str,
-        reader_id: str,
-        mount_path: str | Path,
         timeout: float = 3600,
         poll_interval: float = 1,
         api: Any = None,
     ) -> None:
         self.plan_name = _token(plan_name, "plan name")
         self.namespace = _token(namespace, "namespace")
-        self.reader_id = _token(reader_id, "reader ID")
         for name, value in (("timeout", timeout), ("poll_interval", poll_interval)):
             if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
                 raise WindowValidationError(f"{name} must be a positive finite number")
         self.timeout = float(timeout)
         self.poll_interval = float(poll_interval)
-        self.mount_path = Path(mount_path).expanduser().resolve()
         self._plan_uid: str | None = None
-        self._released: set[tuple[str, int, str]] = set()
-        self._acquired: dict[tuple[str, int, str], WindowHandle] = {}
         if api is None:
             try:
                 from kubernetes import client, config
@@ -157,25 +211,8 @@ class WindowClient:
             raise WindowTimeoutError(f"Timed out {operation}; no lease was automatically released")
         time.sleep(min(self.poll_interval, remaining))
 
-    def _root(self, uid: str, generation: str, relative: Any) -> Path:
-        if not isinstance(relative, str) or "\\" in relative or "\x00" in relative:
-            raise WindowValidationError("slot relativePath must be a safe POSIX relative path")
-        parts = relative.split("/")
-        if PurePosixPath(relative).is_absolute() or any(part in ("", ".", "..") for part in parts):
-            raise WindowValidationError("slot relativePath contains an absolute path or traversal")
-        if relative != f"windowflow/{uid}/{generation}":
-            raise WindowValidationError("slot relativePath does not match the plan UID and generation")
-        candidate = self.mount_path
-        for part in parts:
-            candidate /= part
-            if candidate.is_symlink():
-                raise WindowValidationError("slot path contains a symlink")
-        resolved = candidate.resolve()
-        if not resolved.is_relative_to(self.mount_path) or resolved == self.mount_path:
-            raise WindowValidationError("slot path escapes the mounted cache")
-        return resolved
-
-    def _plan(self, deadline: float) -> dict[str, Any]:
+    def _read_plan(self, deadline: float) -> dict[str, Any]:
+        """Shared object validation; Failed plans remain available to observers."""
         try:
             plan = _mapping(self._get(PLANS, self.plan_name, deadline), "WindowPlan")
         except Exception as exc:
@@ -202,14 +239,15 @@ class WindowClient:
             _token(reader, "plan reader ID")
         if len(set(readers)) != len(readers):
             raise WindowValidationError("WindowPlan readers must be unique")
-        if self.reader_id not in readers:
-            raise WindowValidationError(f"Reader {self.reader_id!r} is not a member of this plan")
         windows = spec.get("windows")
         if not isinstance(windows, list) or not windows:
             raise WindowValidationError("WindowPlan windows must be a nonempty list")
         ids = [_token(_mapping(window, "window").get("id"), "window ID") for window in windows]
         if len(set(ids)) != len(ids):
             raise WindowValidationError("WindowPlan window IDs must be unique")
+        start = _index(spec.get("startWindow", 0), "start window")
+        if start >= len(windows):
+            raise WindowValidationError("WindowPlan startWindow is outside the plan")
         slots_count = _index(spec.get("slots"), "slot count")
         if not 2 <= slots_count <= 64:
             raise WindowValidationError("WindowPlan needs 2..64 slots")
@@ -217,8 +255,14 @@ class WindowClient:
         phase = status.get("phase", "Pending")
         if phase not in ("Pending", "Running", "Completed", "Failed"):
             raise WindowValidationError("Unknown WindowPlan phase")
-        if phase == "Failed":
-            raise PlanFailedError("The operator marked the WindowPlan Failed; inspect its status before recovery")
+        _string(status.get("message", ""), "WindowPlan status message")
+        next_window = _index(status.get("nextWindow", 0), "next window")
+        if next_window > len(windows):
+            raise WindowValidationError("WindowPlan nextWindow is outside the plan")
+        completed = _index(status.get("completedWindows", 0), "completed windows")
+        if completed > len(windows) - start:
+            raise WindowValidationError("WindowPlan completedWindows exceeds this attempt's window count")
+        _index(status.get("observedGeneration", 0), "observed generation")
         slots = status.get("slots", [])
         if not isinstance(slots, list):
             raise WindowValidationError("WindowPlan status slots must be a list")
@@ -230,7 +274,7 @@ class WindowClient:
             index = _index(slot.get("windowIndex"), "slot window index")
             if slot_index >= slots_count or slot_index in seen_slots:
                 raise WindowValidationError("Invalid or duplicate slot index")
-            if index >= len(windows) or index in seen_windows:
+            if index < start or index >= len(windows) or index in seen_windows:
                 raise WindowValidationError("Invalid or duplicate slot window index")
             seen_slots.add(slot_index)
             seen_windows.add(index)
@@ -240,7 +284,121 @@ class WindowClient:
                 raise WindowValidationError("Slot generation does not match the window ordinal")
             if slot.get("phase") not in ("Loading", "Ready", "Reclaiming", "Failed"):
                 raise WindowValidationError("Unknown slot phase")
-            self._root(uid, slot["generation"], slot.get("relativePath"))
+            _relative_path(uid, slot["generation"], slot.get("relativePath"))
+            _index(slot.get("reservedBytes", 0), "slot reserved bytes")
+            for field in ("stageJob", "cleanJob"):
+                value = _string(slot.get(field, ""), f"slot {field}")
+                if value:
+                    _token(value, f"slot {field}")
+        return plan
+
+    def _status_snapshot(self, plan: dict[str, Any]) -> WindowPlanStatus:
+        metadata, spec, status = plan["metadata"], plan["spec"], plan.get("status", {})
+        return WindowPlanStatus(
+            plan_name=metadata["name"], namespace=metadata.get("namespace", self.namespace),
+            plan_uid=metadata["uid"], phase=status.get("phase", "Pending"),
+            message=status.get("message", ""), start_window=spec.get("startWindow", 0),
+            window_count=len(spec["windows"]), slot_count=spec["slots"],
+            next_window=status.get("nextWindow", 0), completed_windows=status.get("completedWindows", 0),
+            observed_generation=status.get("observedGeneration", 0),
+            slots=tuple(WindowSlotStatus(
+                index=slot["index"], window_index=slot["windowIndex"], window_id=slot["windowId"],
+                generation=slot["generation"], phase=slot["phase"], relative_path=slot["relativePath"],
+                reserved_bytes=slot.get("reservedBytes", 0), stage_job=slot.get("stageJob", ""),
+                clean_job=slot.get("cleanJob", ""),
+            ) for slot in status.get("slots", [])),
+        )
+
+    def get_status(self) -> WindowPlanStatus:
+        """Return one validated, immutable snapshot, including a Failed plan.
+
+        This performs exactly one WindowPlan GET. Malformed, deleting, or
+        replaced plans still raise; it does not list readers' leases or retry
+        API authorization errors. Missing status means Pending with no slots.
+        """
+        return self._status_snapshot(self._read_plan(time.monotonic() + self.timeout))
+
+    def wait_ready(self, window_index: int = 0) -> WindowPlanStatus:
+        """Wait for a window's Ready slot and return a read-only plan snapshot.
+
+        This creates no lease and returns no acquired handle or local path.
+        Readiness can change immediately after this call. A failed, completed,
+        reclaiming, skipped, or already reclaimed window is never waited on
+        indefinitely. This wait never advances training or releases data.
+        """
+        index = _index(window_index, "window index")
+        deadline = time.monotonic() + self.timeout
+        while True:
+            if time.monotonic() >= deadline:
+                raise WindowTimeoutError(f"Timed out waiting for window {index} readiness; no lease was created or released")
+            plan = self._read_plan(deadline)
+            snapshot = self._status_snapshot(plan)
+            if index < snapshot.start_window:
+                raise WindowValidationError("window index precedes this attempt's startWindow")
+            if index >= snapshot.window_count:
+                raise WindowValidationError("window index is outside the plan")
+            if snapshot.phase == "Failed":
+                raise PlanFailedError(f"The operator marked the WindowPlan Failed: {snapshot.message}")
+            if snapshot.phase == "Completed":
+                raise WindowFlowError("The plan has completed; windows are no longer available")
+            slot = next((s for s in snapshot.slots if s.window_index == index), None)
+            if slot is not None:
+                if slot.phase == "Ready":
+                    return snapshot
+                if slot.phase == "Failed":
+                    raise PlanFailedError(f"Window {index} is Failed; inspect the plan and worker Job")
+                if slot.phase == "Reclaiming":
+                    raise WindowFlowError(f"Window {index} is Reclaiming; it cannot become Ready again")
+            elif index < snapshot.next_window:
+                raise WindowFlowError(f"Window {index} has already left the cache; it cannot become Ready again")
+            self._pause(deadline, f"waiting for window {index} readiness")
+
+
+class WindowClient(WindowObserver):
+    """Acquire and explicitly release windows for one reader and mounted cache.
+
+    Inherits the lease-free ``get_status`` and ``wait_ready`` observer methods.
+    Only ``acquire`` returns a usable WindowHandle and records a reader lease.
+    Timeout, process death, and iterator abandonment never release a window.
+    """
+
+    def __init__(
+        self,
+        plan_name: str,
+        namespace: str,
+        reader_id: str,
+        mount_path: str | Path,
+        timeout: float = 3600,
+        poll_interval: float = 1,
+        api: Any = None,
+    ) -> None:
+        self.reader_id = _token(reader_id, "reader ID")
+        self.mount_path = Path(mount_path).expanduser().resolve()
+        self._released: set[tuple[str, int, str]] = set()
+        self._acquired: dict[tuple[str, int, str], WindowHandle] = {}
+        super().__init__(plan_name, namespace, timeout, poll_interval, api)
+
+    def _root(self, uid: str, generation: str, relative: Any) -> Path:
+        relative = _relative_path(uid, generation, relative)
+        candidate = self.mount_path
+        for part in relative.split("/"):
+            candidate /= part
+            if candidate.is_symlink():
+                raise WindowValidationError("slot path contains a symlink")
+        resolved = candidate.resolve()
+        if not resolved.is_relative_to(self.mount_path) or resolved == self.mount_path:
+            raise WindowValidationError("slot path escapes the mounted cache")
+        return resolved
+
+    def _plan(self, deadline: float) -> dict[str, Any]:
+        plan = self._read_plan(deadline)
+        if self.reader_id not in plan["spec"]["readers"]:
+            raise WindowValidationError(f"Reader {self.reader_id!r} is not a member of this plan")
+        status = plan.get("status", {})
+        if status.get("phase") == "Failed":
+            raise PlanFailedError("The operator marked the WindowPlan Failed; inspect its status before recovery")
+        for slot in status.get("slots", []):
+            self._root(plan["metadata"]["uid"], slot["generation"], slot["relativePath"])
         return plan
 
     def _lease_spec(self, handle: WindowHandle) -> dict[str, Any]:

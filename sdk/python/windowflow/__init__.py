@@ -9,12 +9,18 @@ from .client import (
     WindowClient,
     WindowFlowError,
     WindowHandle,
+    WindowObserver,
+    WindowPlanStatus,
+    WindowSlotStatus,
     WindowTimeoutError,
     WindowValidationError,
     lease_name,
 )
+from .runner import WindowContext, WindowEpoch, WindowRunner
+from .pytorch import TorchEpochFactory
+from .schedule import ScheduleValidationError, build_plan, generate_schedule, validate_schedule
 
-__version__ = "0.1.0"
+__version__ = "0.2.0a1"
 __all__ = [
     "LeaseConflictError",
     "LeaseReleasedError",
@@ -23,7 +29,18 @@ __all__ = [
     "WindowClient",
     "WindowFlowError",
     "WindowHandle",
+    "WindowObserver",
+    "WindowPlanStatus",
+    "WindowSlotStatus",
+    "WindowContext",
+    "WindowEpoch",
+    "WindowRunner",
+    "TorchEpochFactory",
     "WindowTimeoutError",
     "WindowValidationError",
     "lease_name",
+    "build_plan",
+    "generate_schedule",
+    "validate_schedule",
+    "ScheduleValidationError",
 ]

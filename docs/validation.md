@@ -1,4 +1,35 @@
-# v0.1 validation record
+# Validation record
+
+## SDK 0.2.0a1 development checks
+
+The SDK increment adds finite deterministic schedules, read-only prewarm
+observation, and window-local epoch lifecycle. The Operator API/image remains
+v0.1.0-compatible. Local checks on 2026-10-07:
+
+- `PYTHONPATH=sdk/python .venv/bin/python -m unittest discover -s sdk/python/tests -v`:
+  102 tests passed with PyTorch 2.14.1 and Python 3.13.13 on macOS arm64.
+- The subsequently added `test_pytorch_ddp.py` passed separately: two real CPU
+  Gloo DDP ranks trained a Linear model through nine visits (three cycles), two
+  epochs per visit, 36 optimizer steps per rank. Both final parameter sets were
+  equal and changed from initialization; each reader released nine windows only
+  after 18 Dataset close calls. This test uses a fake lease API, not Kubernetes.
+- The DataLoader tests exercised actual two-worker `spawn`, checked worker PIDs
+  were no longer active when release was called, and checked premature
+  StopIteration, fixed-step finish, early close, sampler order, and loader RNG.
+- Without PyTorch installed, 103 tests were discovered, with 15 optional Torch
+  tests skipped and the remaining 88 passing. Base SDK imports require no torch.
+- `CGO_ENABLED=0 go test ./...`, `CGO_ENABLED=0 go vet ./...`, Python compilation,
+  shell syntax, CLI generation and `git diff --check` passed.
+
+The expanded kind script targets two readers, two slots, nine window visits,
+two epochs per visit and 18 real stage/clean Jobs. Its current revision's actual
+CI result must be checked separately; the historical v0.1 run below only covers
+three visits. The kind readers hash small text files rather than train a model.
+
+These checks do not establish real OSS/CPFS interoperability, ACK/PPU execution,
+Megatron TP/PP correctness, video decoding performance or PB-scale throughput.
+
+## v0.1 Operator release
 
 The first complete [GitHub CI run](https://github.com/iampengqian/windowflow-operator/actions/runs/37210716853) passed on 2026-10-04. It tested commit `84f1549`. Later runs are available in [Actions](https://github.com/iampengqian/windowflow-operator/actions). Check the run's commit before using it as evidence for a later revision.
 

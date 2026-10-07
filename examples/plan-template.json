@@ -1,0 +1,15 @@
+{
+  "apiVersion": "data.windowflow.io/v1alpha1",
+  "kind": "WindowPlan",
+  "metadata": {"name": "generated-local-demo", "namespace": "default"},
+  "spec": {
+    "pvcName": "training-cache",
+    "sourcePVC": "source-data",
+    "backend": "local",
+    "slots": 2,
+    "maxConcurrentLoads": 1,
+    "capacityBytes": 14,
+    "readers": ["dp0", "dp1"],
+    "workerImage": "ghcr.io/iampengqian/windowflow-operator:v0.1.0"
+  }
+}
